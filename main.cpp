@@ -1,5 +1,7 @@
 #include <benchmark/benchmark.h>
 
+#include <iostream>
+#include <source_location>
 #include <vector>
 
 #include <cassert>
@@ -11,6 +13,7 @@
 #endif
 
 
+#define VALIDATE_RESULTS
 #define NORM_VAL 128.0f
 
 
@@ -24,6 +27,27 @@ static const std::vector<uint8_t> data = []() {
 }();
 
 
+#ifdef VALIDATE_RESULTS
+static const std::vector<uint8_t> expected_data = []() {
+    std::vector<uint8_t> out(SIZE);
+    for (std::size_t i=0; i < SIZE; ++i)
+        out[i] = 255.0f * (data[i] / NORM_VAL);
+    return out;
+}();
+
+
+void validate_result(const std::vector<uint8_t>& result,
+                     const std::source_location location = std::source_location::current()) {
+    assert(result.size() == SIZE);
+    for (std::size_t i=0; i < SIZE; ++i)
+        if (result[i] != expected_data[i]) {
+            std::cerr << "Data differs in test " << location.function_name() << " for i=" << i << ", found: " << (int)result[i] << " expected: " << (int)expected_data[i] << '\n';
+            std::abort();
+        }
+}
+#endif
+
+
 static void vector_1u8_at_once_naive_direct(benchmark::State& state) {
     std::vector<uint8_t> out(SIZE);
     for (auto _: state)
@@ -31,6 +55,9 @@ static void vector_1u8_at_once_naive_direct(benchmark::State& state) {
             out[i] = 255.0f * (data[i] / NORM_VAL);
         }
     benchmark::DoNotOptimize(out);
+#ifdef VALIDATE_RESULTS
+    validate_result(out);
+#endif
 }
 BENCHMARK(vector_1u8_at_once_naive_direct);
 
@@ -46,6 +73,9 @@ static void vector_1u8_at_once_data_ptr(benchmark::State& state) {
             outd[i] = static_cast<uint8_t>(255.0f * (ind[i] / NORM_VAL));
         }
     benchmark::DoNotOptimize(out);
+#ifdef VALIDATE_RESULTS
+    validate_result(out);
+#endif
 }
 BENCHMARK(vector_1u8_at_once_data_ptr);
 
@@ -76,6 +106,9 @@ static void sse_4u8_at_once_manual_recompose(benchmark::State& state) {
             outd[i] = v2;
         }
     benchmark::DoNotOptimize(out);
+#ifdef VALIDATE_RESULTS
+    validate_result(out);
+#endif
 }
 BENCHMARK(sse_4u8_at_once_manual_recompose);
 
@@ -96,13 +129,16 @@ static void sse_4u8_at_once_extract_recompose(benchmark::State& state) {
             fx4 = 255.0f * (fx4 / NORM_VAL);
             u32x4 = _mm_cvttps_epi32(fx4);
             const auto v2 =
-                    _mm_extract_epi8(u32x4, 0) << 24 |
-                    _mm_extract_epi8(u32x4, 4) << 16 |
-                    _mm_extract_epi8(u32x4, 8) <<  8 |
-                    _mm_extract_epi8(u32x4, 12);
+                    _mm_extract_epi8(u32x4, 12) << 24 |
+                    _mm_extract_epi8(u32x4,  8) << 16 |
+                    _mm_extract_epi8(u32x4,  4) <<  8 |
+                    _mm_extract_epi8(u32x4,  0);
             outd[i] = v2;
         }
     benchmark::DoNotOptimize(out);
+#ifdef VALIDATE_RESULTS
+    validate_result(out);
+#endif
 }
 BENCHMARK(sse_4u8_at_once_extract_recompose);
 
@@ -129,6 +165,9 @@ static void sse_4u8_at_once_pack_recompose(benchmark::State& state) {
             outd[i] = v2;
         }
     benchmark::DoNotOptimize(out);
+#ifdef VALIDATE_RESULTS
+    validate_result(out);
+#endif
 }
 BENCHMARK(sse_4u8_at_once_pack_recompose);
 
@@ -156,6 +195,9 @@ static void avx_8u8_at_once(benchmark::State& state) {
             outd[i] = u8x32[0];
         }
     benchmark::DoNotOptimize(out);
+#ifdef VALIDATE_RESULTS
+    validate_result(out);
+#endif
 }
 BENCHMARK(avx_8u8_at_once);
 
@@ -181,6 +223,9 @@ static void avx_8u8_at_once_avx512_recompose(benchmark::State& state) {
             outd[i] = u8x16[0];
         }
     benchmark::DoNotOptimize(out);
+#ifdef VALIDATE_RESULTS
+    validate_result(out);
+#endif
 }
 BENCHMARK(avx_8u8_at_once_avx512_recompose);
 #endif
@@ -207,6 +252,9 @@ static void avx_16u8_at_once_avx512(benchmark::State& state) {
             outd[i] = (__uint128_t)u8x16;
         }
     benchmark::DoNotOptimize(out);
+#ifdef VALIDATE_RESULTS
+    validate_result(out);
+#endif
 }
 BENCHMARK(avx_16u8_at_once_avx512);
 #endif
