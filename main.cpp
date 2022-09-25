@@ -15,7 +15,7 @@ static const std::vector<uint8_t> data = []() {
 }();
 
 
-static void f1(benchmark::State& state) {
+static void vector_1u8_at_once_naive_direct(benchmark::State& state) {
     std::vector<uint8_t> out(SIZE);
     for (auto _: state)
         for (std::size_t i=0; i < SIZE; ++i) {
@@ -23,10 +23,10 @@ static void f1(benchmark::State& state) {
         }
     benchmark::DoNotOptimize(out);
 }
-BENCHMARK(f1);
+BENCHMARK(vector_1u8_at_once_naive_direct);
 
 
-static void f2(benchmark::State& state) {
+static void vector_1u8_at_once_data_ptr(benchmark::State& state) {
     std::vector<uint8_t> out(SIZE);
 
     const uint8_t* ind = data.data();
@@ -38,13 +38,13 @@ static void f2(benchmark::State& state) {
         }
     benchmark::DoNotOptimize(out);
 }
-BENCHMARK(f2);
+BENCHMARK(vector_1u8_at_once_data_ptr);
 
 
 #include <emmintrin.h>
 #include <smmintrin.h>
 
-static void f3(benchmark::State& state) {
+static void sse_4u8_at_once_manual_recompose(benchmark::State& state) {
     assert(SIZE % 4 == 0);
 
     std::vector<uint8_t> out(SIZE);
@@ -68,10 +68,10 @@ static void f3(benchmark::State& state) {
         }
     benchmark::DoNotOptimize(out);
 }
-BENCHMARK(f3);
+BENCHMARK(sse_4u8_at_once_manual_recompose);
 
 
-static void f4(benchmark::State& state) {
+static void sse_4u8_at_once_extract_recompose(benchmark::State& state) {
     assert(SIZE % 4 == 0);
 
     std::vector<uint8_t> out(SIZE);
@@ -95,10 +95,10 @@ static void f4(benchmark::State& state) {
         }
     benchmark::DoNotOptimize(out);
 }
-BENCHMARK(f4);
+BENCHMARK(sse_4u8_at_once_extract_recompose);
 
 
-static void f5(benchmark::State& state) {
+static void sse_4u8_at_once_pack_recompose(benchmark::State& state) {
     assert(SIZE % 4 == 0);
 
     std::vector<uint8_t> out(SIZE);
@@ -121,38 +121,12 @@ static void f5(benchmark::State& state) {
         }
     benchmark::DoNotOptimize(out);
 }
-BENCHMARK(f5);
-
-
-static void f6(benchmark::State& state) {
-    assert(SIZE % 4 == 0);
-
-    std::vector<uint8_t> out(SIZE);
-
-    const auto* ind = reinterpret_cast<const uint32_t*>(data.data());
-    auto* outd = reinterpret_cast<uint32_t*>(out.data());
-
-    for (auto _: state)
-        for (std::size_t i=0; i < SIZE / 4; ++i) {
-            const auto v = ind[i];
-            __m128i u32x4 = _mm_cvtepu8_epi32(__m128i{v});
-            __m128 fx4 = _mm_cvtepi32_ps(u32x4);
-            fx4 = 255.0f * (fx4 / 128.0f);
-            u32x4 = _mm_cvttps_epi32(fx4);
-            u32x4 = _mm_packus_epi32(u32x4, u32x4);
-            u32x4 = _mm_packus_epi16(u32x4, u32x4);
-
-            const auto v2 = u32x4[0];
-            outd[i] = v2;
-        }
-    benchmark::DoNotOptimize(out);
-}
-BENCHMARK(f6);
+BENCHMARK(sse_4u8_at_once_pack_recompose);
 
 
 #include <immintrin.h>
 
-static void f7(benchmark::State& state) {
+static void avx_8u8_at_once(benchmark::State& state) {
     assert(SIZE % 8 == 0);
 
     std::vector<uint8_t> out(SIZE);
@@ -174,7 +148,7 @@ static void f7(benchmark::State& state) {
         }
     benchmark::DoNotOptimize(out);
 }
-BENCHMARK(f7);
+BENCHMARK(avx_8u8_at_once);
 
 
 BENCHMARK_MAIN();
