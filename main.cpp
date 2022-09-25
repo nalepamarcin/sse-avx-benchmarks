@@ -11,11 +11,15 @@
 #endif
 
 
+#define NORM_VAL 128.0f
+
+
 constexpr const std::size_t SIZE = 2 << 20;
 static const std::vector<uint8_t> data = []() {
+    const uint8_t MAX_VAL = (int)NORM_VAL;
     std::vector<uint8_t> out(SIZE);
     for (std::size_t i=0; i < SIZE; ++i)
-        out[i] = i;
+        out[i] = i % MAX_VAL;
     return out;
 }();
 
@@ -24,7 +28,7 @@ static void vector_1u8_at_once_naive_direct(benchmark::State& state) {
     std::vector<uint8_t> out(SIZE);
     for (auto _: state)
         for (std::size_t i=0; i < SIZE; ++i) {
-            out[i] = 255.0f * (data[i] / 128.0f);
+            out[i] = 255.0f * (data[i] / NORM_VAL);
         }
     benchmark::DoNotOptimize(out);
 }
@@ -39,7 +43,7 @@ static void vector_1u8_at_once_data_ptr(benchmark::State& state) {
 
     for (auto _: state)
         for (std::size_t i=0; i < SIZE; ++i) {
-            outd[i] = static_cast<uint8_t>(255.0f * (ind[i] / 128.0f));
+            outd[i] = static_cast<uint8_t>(255.0f * (ind[i] / NORM_VAL));
         }
     benchmark::DoNotOptimize(out);
 }
@@ -62,7 +66,7 @@ static void sse_4u8_at_once_manual_recompose(benchmark::State& state) {
             const auto v = ind[i];
             __m128i u32x4 = _mm_cvtepu8_epi32(__m128i{v});
             __m128 fx4 = _mm_cvtepi32_ps(u32x4);
-            fx4 = 255.0f * (fx4 / 128.0f);
+            fx4 = 255.0f * (fx4 / NORM_VAL);
             u32x4 = _mm_cvttps_epi32(fx4);
             const auto v2 =
                     (u32x4[1] >> 32)  << 24 |
@@ -89,7 +93,7 @@ static void sse_4u8_at_once_extract_recompose(benchmark::State& state) {
             const auto v = ind[i];
             __m128i u32x4 = _mm_cvtepu8_epi32(__m128i{v});
             __m128 fx4 = _mm_cvtepi32_ps(u32x4);
-            fx4 = 255.0f * (fx4 / 128.0f);
+            fx4 = 255.0f * (fx4 / NORM_VAL);
             u32x4 = _mm_cvttps_epi32(fx4);
             const auto v2 =
                     _mm_extract_epi8(u32x4, 0) << 24 |
@@ -116,7 +120,7 @@ static void sse_4u8_at_once_pack_recompose(benchmark::State& state) {
             const auto v = ind[i];
             __m128i u32x4 = _mm_cvtepu8_epi32(__m128i{v});
             __m128 fx4 = _mm_cvtepi32_ps(u32x4);
-            fx4 = 255.0f * (fx4 / 128.0f);
+            fx4 = 255.0f * (fx4 / NORM_VAL);
             u32x4 = _mm_cvttps_epi32(fx4);
             u32x4 = _mm_packus_epi32(u32x4, u32x4);
             u32x4 = _mm_packus_epi16(u32x4, u32x4);
@@ -144,7 +148,7 @@ static void avx_8u8_at_once(benchmark::State& state) {
             const auto v = _mm_loadl_epi64(reinterpret_cast<const __m128i_u*>(ind + i));
             __m256i u32x8 = _mm256_cvtepu8_epi32(v);
             __m256 fx8 = _mm256_cvtepi32_ps(u32x8);
-            fx8 = 255.0f * (fx8 / 128.0f);
+            fx8 = 255.0f * (fx8 / NORM_VAL);
             u32x8 = _mm256_cvttps_epi32(fx8);
             const __m256i u32x8_swap_hl = _mm256_permute2x128_si256(u32x8, u32x8, 0x01);
             const auto u16x16 = _mm256_packus_epi32(u32x8, u32x8_swap_hl);
@@ -171,7 +175,7 @@ static void avx_8u8_at_once_avx512_recompose(benchmark::State& state) {
             const auto v = _mm_loadl_epi64(reinterpret_cast<const __m128i_u*>(ind + i));
             __m256i u32x8 = _mm256_cvtepu8_epi32(v);
             __m256 fx8 = _mm256_cvtepi32_ps(u32x8);
-            fx8 = 255.0f * (fx8 / 128.0f);
+            fx8 = 255.0f * (fx8 / NORM_VAL);
             u32x8 = _mm256_cvttps_epi32(fx8);
             const __m128i u8x16 = _mm256_cvtepi32_epi8(u32x8);
             outd[i] = u8x16[0];
@@ -197,7 +201,7 @@ static void avx_16u8_at_once_avx512(benchmark::State& state) {
             const auto v = _mm_load_epi64(ind + i);
             __m512i u32x16 = _mm512_cvtepu8_epi32(v);
             __m512 fx16 = _mm512_cvtepu32_ps(u32x16);
-            fx16 = 255.0f * (fx16 / 128.0f);
+            fx16 = 255.0f * (fx16 / NORM_VAL);
             u32x16 = _mm512_cvttps_epu32(fx16);
             const __m128i u8x16 = _mm512_cvtepi32_epi8(u32x16);
             outd[i] = (__uint128_t)u8x16;
