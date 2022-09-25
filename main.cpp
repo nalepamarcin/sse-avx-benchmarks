@@ -6,6 +6,11 @@
 #include <cstdint>
 
 
+#if defined __AVX512F__ && defined __AVX512VL__
+#define ENABLE_AVX512_TESTS
+#endif
+
+
 constexpr const std::size_t SIZE = 2 << 20;
 static const std::vector<uint8_t> data = []() {
     std::vector<uint8_t> out(SIZE);
@@ -149,6 +154,58 @@ static void avx_8u8_at_once(benchmark::State& state) {
     benchmark::DoNotOptimize(out);
 }
 BENCHMARK(avx_8u8_at_once);
+
+
+#ifdef ENABLE_AVX512_TESTS
+static void avx_8u8_at_once_avx512_recompose(benchmark::State& state) {
+    // not tested
+    assert(SIZE % 8 == 0);
+
+    std::vector<uint8_t> out(SIZE);
+
+    const auto* ind = reinterpret_cast<const uint64_t*>(data.data());
+    auto* outd = reinterpret_cast<uint64_t*>(out.data());
+
+    for (auto _: state)
+        for (std::size_t i=0; i < SIZE / 8; ++i) {
+            const auto v = _mm_loadl_epi64(reinterpret_cast<const __m128i_u*>(ind + i));
+            __m256i u32x8 = _mm256_cvtepu8_epi32(v);
+            __m256 fx8 = _mm256_cvtepi32_ps(u32x8);
+            fx8 = 255.0f * (fx8 / 128.0f);
+            u32x8 = _mm256_cvttps_epi32(fx8);
+            const __m128i u8x16 = _mm256_cvtepi32_epi8(u32x8);
+            outd[i] = u8x16[0];
+        }
+    benchmark::DoNotOptimize(out);
+}
+BENCHMARK(avx_8u8_at_once_avx512_recompose);
+#endif
+
+
+#ifdef ENABLE_AVX512_TESTS
+static void avx_16u8_at_once_avx512(benchmark::State& state) {
+    // not tested
+    assert(SIZE % 16 == 0);
+
+    std::vector<uint8_t> out(SIZE);
+
+    const auto* ind = reinterpret_cast<const __uint128_t*>(data.data());
+    auto* outd = reinterpret_cast<__uint128_t*>(out.data());
+
+    for (auto _: state)
+        for (std::size_t i=0; i < SIZE / 16; ++i) {
+            const auto v = _mm_load_epi64(ind + i);
+            __m512i u32x16 = _mm512_cvtepu8_epi32(v);
+            __m512 fx16 = _mm512_cvtepu32_ps(u32x16);
+            fx16 = 255.0f * (fx16 / 128.0f);
+            u32x16 = _mm512_cvttps_epu32(fx16);
+            const __m128i u8x16 = _mm512_cvtepi32_epi8(u32x16);
+            outd[i] = (__uint128_t)u8x16;
+        }
+    benchmark::DoNotOptimize(out);
+}
+BENCHMARK(avx_16u8_at_once_avx512);
+#endif
 
 
 BENCHMARK_MAIN();
